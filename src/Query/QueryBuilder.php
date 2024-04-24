@@ -154,6 +154,13 @@ class QueryBuilder
     private array $values = [];
 
     /**
+     * The QueryBuilder for the union parts.
+     *
+     * @var string[]|QueryBuilder[]
+     */
+    private array $union = [];
+
+    /**
      * The query cache profile used for caching results.
      */
     private ?QueryCacheProfile $resultCacheProfile = null;
@@ -336,6 +343,8 @@ class QueryBuilder
             QueryType::DELETE => $this->getSQLForDelete(),
             QueryType::UPDATE => $this->getSQLForUpdate(),
             QueryType::SELECT => $this->getSQLForSelect(),
+            QueryType::UNION_ALL,
+            QueryType::UNION_DISTINCT => $this->getSQLForUnion(),
         };
     }
 
@@ -495,6 +504,94 @@ class QueryBuilder
     public function forUpdate(ConflictResolutionMode $conflictResolutionMode = ConflictResolutionMode::ORDINARY): self
     {
         $this->forUpdate = new ForUpdate($conflictResolutionMode);
+
+        $this->sql = null;
+
+        return $this;
+    }
+
+    /**
+     * Specifies union parts to be used to build a UNION query.
+     * Replaces any previously specified parts.
+     *
+     * <code>
+     *     $qb = $conn->createQueryBuilder()
+     *         ->union('SELECT 1 AS field1', 'SELECT 2 AS field1');
+     * </code>
+     *
+     * @return $this
+     */
+    public function union(string|QueryBuilder ...$parts): self
+    {
+        $this->type = QueryType::UNION_DISTINCT;
+
+        $this->union = $parts;
+
+        $this->sql = null;
+
+        return $this;
+    }
+
+    /**
+     * Add parts to be used to build a UNION query.
+     *
+     * <code>
+     *     $qb = $conn->createQueryBuilder()
+     *         ->union('SELECT 1 AS field1')
+     *         ->addUnion('SELECT 2 AS field1', 'SELECT 3 AS field1')
+     * </code>
+     *
+     * @return $this
+     */
+    public function addUnion(string|QueryBuilder ...$parts): self
+    {
+        $this->type = QueryType::UNION_DISTINCT;
+
+        $this->union = array_merge($this->union, $parts);
+
+        $this->sql = null;
+
+        return $this;
+    }
+
+    /**
+     * Specifies UNION ALL parts to be used to build a UNION query.
+     * Replaces any previously specified parts.
+     *
+     * <code>
+     *     $qb = $conn->createQueryBuilder()
+     *         ->unionAll('SELECT 1 AS field1', 'SELECT 2 AS field1');
+     * </code>
+     *
+     * @return $this
+     */
+    public function unionAll(string|QueryBuilder ...$parts): self
+    {
+        $this->type = QueryType::UNION_ALL;
+
+        $this->union = $parts;
+
+        $this->sql = null;
+
+        return $this;
+    }
+
+    /**
+     * Add parts to be used to build a UNION ALL query.
+     *
+     * <code>
+     *     $qb = $conn->createQueryBuilder()
+     *         ->unionAll('SELECT 1 AS field1')
+     *         ->addUnionAll('SELECT 2 AS field1', 'SELECT 3 AS field1')
+     * </code>
+     *
+     * @return $this
+     */
+    public function addUnionAll(string|QueryBuilder ...$parts): self
+    {
+        $this->type = QueryType::UNION_ALL;
+
+        $this->union = array_merge($this->union, $parts);
 
         $this->sql = null;
 
@@ -1307,6 +1404,32 @@ class QueryBuilder
         }
 
         return $query;
+    }
+
+    /**
+     * Converts this instance into a UNION string in SQL.
+     */
+    private function getSQLForUnion(): string
+    {
+        $countUnions = count($this->union);
+        if ($countUnions < 2) {
+            $message = $countUnions === 0
+                ? 'No UNION parts given. Please use union(), unionAll, addUnion or addUnionAll().'
+                : 'Insufficient UNION parts give, need at least 2. Please use addUnion() or addUnionAll() to add more.';
+
+            throw new QueryException($message);
+        }
+
+        return $this->connection->getDatabasePlatform()
+            ->createUnionSQLBuilder()
+            ->buildSQL(
+                new UnionQuery(
+                    $this->type === QueryType::UNION_DISTINCT,
+                    $this->union,
+                    $this->orderBy,
+                    new Limit($this->maxResults, $this->firstResult),
+                ),
+            );
     }
 
     /**

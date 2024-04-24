@@ -11,4 +11,6 @@ enum QueryType
     case DELETE;
     case UPDATE;
     case INSERT;
+    case UNION_ALL;
+    case UNION_DISTINCT;
 }

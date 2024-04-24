@@ -315,6 +315,53 @@ user-input:
         ->setParameter(0, $userInputLastLogin)
     ;
 
+UNION-Clause
+~~~~~~~~~~~~
+
+To combine multiple ``SELECT`` queries into one result-set you can pass SQL Part strings
+or QueryBuilder instances to one of the following methods:
+
+* ``union('SELECT 1 as field', $partQueryBuilder)``
+* ``addUnion('SELECT 1 as field', $partQueryBuilder)``
+* ``unionAll('SELECT 1 as field', $partQueryBuilder)``
+* ``addUnionAll('SELECT 1 as field', $partQueryBuilder)``
+
+.. code-block:: php
+
+    <?php
+
+    $queryBuilder
+        ->union('SELECT 1 AS field', 'SELECT 2 AS field')
+        ->addUnion('SELECT 3 AS field', 'SELECT 3 as field')
+    ;
+
+    $queryBuilder
+        ->unionAll('SELECT 1 AS field', 'SELECT 2 AS field')
+        ->addUnionAll('SELECT 3 AS field', 'SELECT 3 as field')
+    ;
+
+    $subQueryBuilder1
+        ->select('id AS field')
+        ->from('a_table');
+    $subQueryBuilder2
+        ->select('id AS field')
+        ->from('a_table');
+    $queryBuilder
+        ->union($subQueryBuilder1)
+        ->addUnion($subQueryBuilder2)
+    ;
+
+    $subQueryBuilder1
+        ->select('id AS field')
+        ->from('a_table');
+    $subQueryBuilder2
+        ->select('id AS field')
+        ->from('a_table');
+    $queryBuilder
+        ->unionAll($subQueryBuilder1)
+        ->addUnionAll($subQueryBuilder2)
+    ;
+
 Building Expressions
 --------------------
 

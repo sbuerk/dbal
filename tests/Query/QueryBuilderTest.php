@@ -14,6 +14,7 @@ use Doctrine\DBAL\Query\QueryBuilder;
 use Doctrine\DBAL\Query\QueryException;
 use Doctrine\DBAL\Result;
 use Doctrine\DBAL\SQL\Builder\DefaultSelectSQLBuilder;
+use Doctrine\DBAL\SQL\Builder\DefaultUnionSQLBuilder;
 use Doctrine\DBAL\Types\Types;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -38,6 +39,8 @@ class QueryBuilderTest extends TestCase
         $platform = $this->createMock(AbstractPlatform::class);
         $platform->method('createSelectSQLBuilder')
             ->willReturn(new DefaultSelectSQLBuilder($platform, null, null));
+        $platform->method('createUnionSQLBuilder')
+            ->willReturn(new DefaultUnionSQLBuilder($platform));
 
         $this->conn->method('getDatabasePlatform')
             ->willReturn($platform);
@@ -1408,5 +1411,141 @@ class QueryBuilderTest extends TestCase
             $mockedResult,
             $results,
         );
+    }
+
+    public function testUnionWithNoUnionPartsThrowException(): void
+    {
+        $qb = new QueryBuilder($this->conn);
+        $qb->union();
+
+        $this->expectException(QueryException::class);
+        $this->expectExceptionMessage('No UNION parts given. Please use union(), unionAll, addUnion or addUnionAll().');
+
+        $qb->getSQL();
+    }
+
+    public function testUnionWithOneUnionPartThrowException(): void
+    {
+        $qb = new QueryBuilder($this->conn);
+        $qb->union('SELECT 1 AS field_one');
+
+        $this->expectException(QueryException::class);
+        $this->expectExceptionMessage(
+            'Insufficient UNION parts give, need at least 2. Please use addUnion() or addUnionAll() to add more.',
+        );
+
+        $qb->getSQL();
+    }
+
+    public function testUnionAllWithNoUnionPartsThrowException(): void
+    {
+        $qb = new QueryBuilder($this->conn);
+        $qb->unionAll();
+
+        $this->expectException(QueryException::class);
+        $this->expectExceptionMessage('No UNION parts given. Please use union(), unionAll, addUnion or addUnionAll().');
+
+        $qb->getSQL();
+    }
+
+    public function testUnionAllWithOneUnionPartThrowException(): void
+    {
+        $qb = new QueryBuilder($this->conn);
+        $qb->unionAll('SELECT 1 AS field_one');
+
+        $this->expectException(QueryException::class);
+        $this->expectExceptionMessage(
+            'Insufficient UNION parts give, need at least 2. Please use addUnion() or addUnionAll() to add more.',
+        );
+
+        $qb->getSQL();
+    }
+
+    public function testUnionAllReturnsUnionAllQuery(): void
+    {
+        $qb = new QueryBuilder($this->conn);
+        $qb->unionAll('SELECT 1 AS field_one', 'SELECT 2 as field_one');
+
+        self::assertSame('SELECT 1 AS field_one UNION ALL SELECT 2 as field_one', $qb->getSQL());
+    }
+
+    public function testUnionWAllAndLimitClauseReturnsUnionAllQuery(): void
+    {
+        $qb = new QueryBuilder($this->conn);
+        $qb->unionAll('SELECT 1 AS field_one', 'SELECT 2 as field_one')->setMaxResults(10)->setFirstResult(10);
+
+        self::assertSame('SELECT 1 AS field_one UNION ALL SELECT 2 as field_one LIMIT 10 OFFSET 10', $qb->getSQL());
+    }
+
+    public function testOnlyAddUnionAllReturnsUnionAllQuery(): void
+    {
+        $qb = new QueryBuilder($this->conn);
+        $qb->addUnionAll('SELECT 1 AS field_one', 'SELECT 2 as field_one');
+
+        self::assertSame('SELECT 1 AS field_one UNION ALL SELECT 2 as field_one', $qb->getSQL());
+    }
+
+    public function testUnionAllAndAddUnionAllReturnsUnionAllQuery(): void
+    {
+        $qb = new QueryBuilder($this->conn);
+        $qb->unionAll('SELECT 1 AS field_one')->addUnionAll('SELECT 2 as field_one');
+
+        self::assertSame('SELECT 1 AS field_one UNION ALL SELECT 2 as field_one', $qb->getSQL());
+    }
+
+    public function testUnionAndAddUnionAllReturnsUnionAllQuery(): void
+    {
+        $qb = new QueryBuilder($this->conn);
+        $qb->union('SELECT 1 AS field_one')->addUnionAll('SELECT 2 as field_one');
+
+        self::assertSame('SELECT 1 AS field_one UNION ALL SELECT 2 as field_one', $qb->getSQL());
+    }
+
+    public function testUnionAllAndAddUnionReturnsUnionQuery(): void
+    {
+        $qb = new QueryBuilder($this->conn);
+        $qb->unionAll('SELECT 1 AS field_one')->addUnion('SELECT 2 as field_one');
+
+        self::assertSame('SELECT 1 AS field_one UNION SELECT 2 as field_one', $qb->getSQL());
+    }
+
+    public function testUnionAllWithOrderByReturnsUnionAllQueryWithOrderBy(): void
+    {
+        $qb = new QueryBuilder($this->conn);
+        $qb->unionAll('SELECT 1 AS field_one', 'SELECT 2 as field_one')->orderBy('field_one', 'ASC');
+
+        self::assertSame('SELECT 1 AS field_one UNION ALL SELECT 2 as field_one ORDER BY field_one ASC', $qb->getSQL());
+    }
+
+    public function testUnionReturnsUnionQuery(): void
+    {
+        $qb = new QueryBuilder($this->conn);
+        $qb->union('SELECT 1 AS field_one', 'SELECT 2 as field_one');
+
+        self::assertSame('SELECT 1 AS field_one UNION SELECT 2 as field_one', $qb->getSQL());
+    }
+
+    public function testOnlyAddUnionReturnsUnionQuery(): void
+    {
+        $qb = new QueryBuilder($this->conn);
+        $qb->addUnion('SELECT 1 AS field_one', 'SELECT 2 as field_one');
+
+        self::assertSame('SELECT 1 AS field_one UNION SELECT 2 as field_one', $qb->getSQL());
+    }
+
+    public function testUnionAndAddUnionReturnsUnionQuery(): void
+    {
+        $qb = new QueryBuilder($this->conn);
+        $qb->union('SELECT 1 AS field_one')->addUnion('SELECT 2 as field_one');
+
+        self::assertSame('SELECT 1 AS field_one UNION SELECT 2 as field_one', $qb->getSQL());
+    }
+
+    public function testUnionAndOrderByReturnsUnionQueryWithOrderBy(): void
+    {
+        $qb = new QueryBuilder($this->conn);
+        $qb->union('SELECT 1 AS field_one', 'SELECT 2 as field_one')->orderBy('field_one', 'ASC');
+
+        self::assertSame('SELECT 1 AS field_one UNION SELECT 2 as field_one ORDER BY field_one ASC', $qb->getSQL());
     }
 }
