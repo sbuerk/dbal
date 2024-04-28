@@ -984,4 +984,9 @@ class SQLitePlatform extends AbstractPlatform
     {
         return new SQLiteSchemaManager($connection, $this);
     }
+
+    public function supportsCommonTableExpressions(): bool
+    {
+        return true;
+    }
 }

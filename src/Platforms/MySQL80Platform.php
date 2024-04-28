@@ -24,4 +24,9 @@ class MySQL80Platform extends MySQLPlatform
     {
         return AbstractPlatform::createSelectSQLBuilder();
     }
+
+    public function supportsCommonTableExpressions(): bool
+    {
+        return true;
+    }
 }

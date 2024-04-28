@@ -1982,6 +1982,16 @@ abstract class AbstractPlatform
     }
 
     /**
+     * Does this platform support Common Table Expressions ?
+     *
+     * @internal The method should be only used from within the {@see SelectSQLBuilder} class hierarchy.
+     */
+    public function supportsCommonTableExpressions(): bool
+    {
+        return false;
+    }
+
+    /**
      * Gets the format string, as accepted by the date() function, that describes
      * the format of a stored datetime value of this platform.
      *

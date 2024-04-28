@@ -378,6 +378,81 @@ final class QueryBuilderTest extends FunctionalTestCase
         self::assertSame($expectedRows, $qb->executeQuery()->fetchAllAssociative());
     }
 
+    public function testWithAndAddWithReturnsExpectedResult(): void
+    {
+        if (! $this->connection->getDatabasePlatform()->supportsCommonTableExpressions()) {
+            self::markTestSkipped('Common Table Expressions not supported.');
+        }
+
+        $records         = [
+            ['id' => 1, 'parent_id' => 0, 'type' => 1],
+            ['id' => 2, 'parent_id' => 0, 'type' => 2],
+            ['id' => 3, 'parent_id' => 1, 'type' => 1],
+        ];
+        $expectedRecords = [
+            ['id' => 3, 'parent_id' => 1, 'type' => 1],
+        ];
+        $records         = $this->prepareExpectedRows($records);
+        $expectedRecords = $this->prepareExpectedRows($expectedRecords);
+        $this->prepareWithDataSet(['common_table_expression' => $records]);
+
+        $qb   = $this->connection->createQueryBuilder();
+        $sub1 = $this->connection->createQueryBuilder();
+        $sub1->select('id', 'parent_id', 'type')
+            ->from($this->connection->quoteIdentifier('common_table_expression'))
+            ->where(
+                $qb->expr()->eq(
+                    $this->connection->quoteIdentifier('type'),
+                    $qb->createNamedParameter(1, ParameterType::INTEGER),
+                ),
+            );
+        $sub2 = $this->connection->createQueryBuilder();
+        $sub2->select('id', 'parent_id', 'type')
+            ->from($this->connection->quoteIdentifier('cte1'))
+            ->where(
+                $qb->expr()->gt(
+                    $this->connection->quoteIdentifier('parent_id'),
+                    $qb->createNamedParameter(0, ParameterType::INTEGER),
+                ),
+            );
+        $qb->select('id', 'parent_id', 'type')
+            ->from($this->connection->quoteIdentifier('cte2'))
+            ->with(
+                'cte1',
+                $sub1,
+                ['id', 'parent_id', 'type'],
+            )
+            ->addWith(
+                'cte2',
+                $sub2,
+                ['id', 'parent_id', 'type'],
+                ['cte1'],
+            );
+        self::assertSame($expectedRecords, $qb->executeQuery()->fetchAllAssociative());
+    }
+
+    /** @param array<string, array<int, array<string, mixed>>> $tableRecords */
+    private function prepareWithDataSet(array $tableRecords): void
+    {
+        $this->createCommonTableExpressionTable();
+        foreach ($tableRecords as $table => $records) {
+            foreach ($records as $record) {
+                $this->connection->insert($table, $record);
+            }
+        }
+    }
+
+    private function createCommonTableExpressionTable(): void
+    {
+        $table = new Table('common_table_expression');
+        $table->addColumn('id', Types::INTEGER);
+        $table->addColumn('parent_id', Types::INTEGER);
+        $table->addColumn('type', Types::INTEGER);
+        $table->setPrimaryKey(['id']);
+
+        $this->dropAndCreateTable($table);
+    }
+
     /**
      * @param array<array<string, int>> $rows
      *

@@ -9,6 +9,7 @@ use Doctrine\DBAL\Platforms\AbstractPlatform;
 use Doctrine\DBAL\Platforms\Exception\NotSupported;
 use Doctrine\DBAL\Query\ForUpdate\ConflictResolutionMode;
 use Doctrine\DBAL\Query\SelectQuery;
+use Doctrine\DBAL\Query\With;
 
 use function count;
 use function implode;
@@ -26,7 +27,23 @@ final class DefaultSelectSQLBuilder implements SelectSQLBuilder
     /** @throws Exception */
     public function buildSQL(SelectQuery $query): string
     {
-        $parts = ['SELECT'];
+        $parts = [];
+
+        if ($query->getWith() !== []) {
+            if (! $this->platform->supportsCommonTableExpressions()) {
+                throw NotSupported::new('WITH');
+            }
+
+            $sortedWith = $this->prepareWith($query->getWith());
+            $parts[]    = 'WITH';
+            if ($this->hasRecursiveWith($query->getWith())) {
+                $parts[] = 'RECURSIVE';
+            }
+
+            $parts[] = implode(', ', $sortedWith);
+        }
+
+        $parts[] = 'SELECT';
 
         if ($query->isDistinct()) {
             $parts[] = 'DISTINCT';
@@ -90,5 +107,33 @@ final class DefaultSelectSQLBuilder implements SelectSQLBuilder
         }
 
         return $sql;
+    }
+
+    /**
+     * @param With[] $with
+     *
+     * @return string[]
+     */
+    private function prepareWith(array $with): array
+    {
+        $return = [];
+
+        foreach ($with as $part) {
+            $return[] = (string) $part;
+        }
+
+        return $return;
+    }
+
+    /** @param With[] $with */
+    private function hasRecursiveWith(array $with): bool
+    {
+        foreach ($with as $withPart) {
+            if ($withPart->isRecursive()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

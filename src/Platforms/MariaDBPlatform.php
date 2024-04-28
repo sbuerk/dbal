@@ -162,4 +162,9 @@ class MariaDBPlatform extends AbstractMySQLPlatform
     {
         return new MariaDBKeywords();
     }
+
+    public function supportsCommonTableExpressions(): bool
+    {
+        return true;
+    }
 }

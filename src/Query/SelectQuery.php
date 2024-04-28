@@ -13,6 +13,7 @@ final class SelectQuery
      * @param string[] $from
      * @param string[] $groupBy
      * @param string[] $orderBy
+     * @param With[]   $with
      */
     public function __construct(
         private readonly bool $distinct,
@@ -24,6 +25,7 @@ final class SelectQuery
         private readonly array $orderBy,
         private readonly Limit $limit,
         private readonly ?ForUpdate $forUpdate,
+        private readonly array $with,
     ) {
     }
 
@@ -74,5 +76,11 @@ final class SelectQuery
     public function getForUpdate(): ?ForUpdate
     {
         return $this->forUpdate;
+    }
+
+    /** @return With[] */
+    public function getWith(): array
+    {
+        return $this->with;
     }
 }

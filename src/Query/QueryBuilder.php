@@ -161,6 +161,13 @@ class QueryBuilder
     private array $union = [];
 
     /**
+     * The WITH query parts.
+     *
+     * @var array<string, With>
+     */
+    private array $with = [];
+
+    /**
      * The query cache profile used for caching results.
      */
     private ?QueryCacheProfile $resultCacheProfile = null;
@@ -1320,6 +1327,7 @@ class QueryBuilder
                     $this->orderBy,
                     new Limit($this->maxResults, $this->firstResult),
                     $this->forUpdate,
+                    $this->with,
                 ),
             );
     }
@@ -1596,6 +1604,89 @@ class QueryBuilder
     public function disableResultCache(): self
     {
         $this->resultCacheProfile = null;
+
+        return $this;
+    }
+
+    /**
+     * @param string[] $fields
+     * @param string[] $dependsOn
+     */
+    public function with(
+        string $name,
+        string|QueryBuilder $expression,
+        array $fields = [],
+        array $dependsOn = [],
+    ): self {
+        $this->with = [];
+
+        $this->with[$name] = new With($name, $fields, $dependsOn, $expression, false);
+
+        return $this;
+    }
+
+    /**
+     * @param string[] $fields
+     * @param string[] $dependsOn
+     */
+    public function addWith(
+        string $name,
+        string|QueryBuilder $expression,
+        array $fields = [],
+        array $dependsOn = [],
+    ): self {
+        $this->with[$name] = new With($name, $fields, $dependsOn, $expression, false);
+
+        return $this;
+    }
+
+    /**
+     * @param string[] $fields
+     * @param string[] $dependsOn
+     */
+    public function withRecursive(
+        string $name,
+        bool $uniqueRows,
+        string|QueryBuilder $expression,
+        string|QueryBuilder $initalExpression,
+        array $fields = [],
+        array $dependsOn = [],
+    ): self {
+        $this->with        = [];
+        $unionQueryBuilder = $this->connection->createQueryBuilder();
+
+        if ($uniqueRows) {
+            $unionQueryBuilder->union($expression, $initalExpression);
+        } else {
+            $unionQueryBuilder->unionAll($expression, $initalExpression);
+        }
+
+        $this->with[$name] = new With($name, $fields, $dependsOn, $unionQueryBuilder, true);
+
+        return $this;
+    }
+
+    /**
+     * @param string[] $fields
+     * @param string[] $dependsOn
+     */
+    public function addWithRecursive(
+        string $name,
+        bool $uniqueRows,
+        string|QueryBuilder $expression,
+        string|QueryBuilder $initalExpression,
+        array $fields = [],
+        array $dependsOn = [],
+    ): self {
+        $unionQueryBuilder = $this->connection->createQueryBuilder();
+
+        if ($uniqueRows) {
+            $unionQueryBuilder->union($expression, $initalExpression);
+        } else {
+            $unionQueryBuilder->unionAll($expression, $initalExpression);
+        }
+
+        $this->with[$name] = new With($name, $fields, $dependsOn, $unionQueryBuilder, true);
 
         return $this;
     }
